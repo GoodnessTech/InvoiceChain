@@ -1,0 +1,19 @@
+
+# Local Environment & Private Keys
+.env
+.env.local
+*.env
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# Hardhat & Smart Contract Artifacts
+artifacts/
+cache/
+typechain/
+typechain-types/

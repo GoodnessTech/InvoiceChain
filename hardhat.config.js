@@ -1,0 +1,31 @@
+require("@nomicfoundation/hardhat-ethers");
+require("@nomicfoundation/hardhat-chai-matchers");
+require("dotenv").config();
+
+const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
+
+/** @type import('hardhat/config').HardhatUserConfig */
+module.exports = {
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200
+      }
+    }
+  },
+  networks: {
+    hardhat: {},
+    botTestnet: {
+      url: "https://rpc.bohr.life",
+      chainId: 968,
+      accounts: [PRIVATE_KEY]
+    },
+    botMainnet: {
+      url: "https://rpc.botchain.ai",
+      chainId: 677,
+      accounts: [PRIVATE_KEY]
+    }
+  }
+};

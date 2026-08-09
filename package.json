@@ -1,0 +1,50 @@
+{
+  "name": "invoice-chain",
+  "version": "1.0.0",
+  "description": "InvoiceChain - Tokenized Invoice Factoring Smart Contract & Dynamic Marketplace for BOT Chain",
+  "scripts": {
+    "dev": "npx vite",
+    "build": "npx hardhat compile && npx vite build",
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "deploy:testnet": "npx hardhat run scripts/deploy.js --network botTestnet",
+    "deploy:mainnet": "npx hardhat run scripts/deploy.js --network botMainnet"
+  },
+  "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.8",
+    "@tanstack/react-query": "^5.90.2",
+    "lucide-react": "^0.469.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-hot-toast": "^2.6.0",
+    "viem": "^2.37.6",
+    "wagmi": "^2.17.5"
+    
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "chai": "^4.3.10",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.10.0",
+    "hardhat": "^2.22.0",
+    "semver": "^7.6.0",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.7.3",
+    "vite": "^7.1.7"
+  },
+  "pnpm": {
+  "supportedArchitectures": {
+    "os": ["win32"],
+    "cpu": ["x64"]
+  }
+}
+}
