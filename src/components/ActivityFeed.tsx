@@ -1,11 +1,14 @@
 import {
   ArrowUpRight,
+  Ban,
   Coins,
   FilePlus2,
   HandCoins,
   Radio,
+  RotateCcw,
   TrendingUp,
 } from "lucide-react"
+import { useChainId } from "wagmi"
 import type { FeedEvent, FeedEventType } from "@/lib/invoice"
 import { formatToken, truncateAddress } from "@/lib/invoice"
 import { explorerTx } from "@/config/contracts"
@@ -40,6 +43,16 @@ const eventMeta: Record<
     label: "Claimed",
     className: "bg-amber-50 text-amber-600",
   },
+  Refunded: {
+    icon: RotateCcw,
+    label: "Refunded",
+    className: "bg-rose-50 text-rose-600",
+  },
+  InvoiceCancelled: {
+    icon: Ban,
+    label: "Cancelled",
+    className: "bg-rose-50 text-rose-600",
+  },
 }
 
 function timeAgo(ts: number) {
@@ -53,6 +66,7 @@ function timeAgo(ts: number) {
 }
 
 export function ActivityFeed({ feed }: { feed: FeedEvent[] }) {
+  const chainId = useChainId()
   return (
     <Card className="overflow-hidden">
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -115,7 +129,7 @@ export function ActivityFeed({ feed }: { feed: FeedEvent[] }) {
                   </td>
                   <td className="px-5 py-3 text-right">
                     <a
-                      href={explorerTx(e.txHash)}
+                      href={explorerTx(e.txHash, chainId)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-500"

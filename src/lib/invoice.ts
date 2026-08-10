@@ -34,6 +34,8 @@ export type FeedEventType =
   | "Claimed"
   | "Refunded"
   | "InvoiceCancelled"
+  | "Refunded"
+  | "InvoiceCancelled"
 
 export interface FeedEvent {
   id: string

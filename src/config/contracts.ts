@@ -12,12 +12,26 @@ export const PAYMENT_TOKEN_ADDRESS =
 export const PAYMENT_TOKEN_DECIMALS = 6
 export const PAYMENT_TOKEN_SYMBOL = "USDC"
 
-export const BLOCK_EXPLORER_URL = "https://scan.botchain.ai"
-
-export function explorerTx(hash: string) {
-  return `${BLOCK_EXPLORER_URL}/tx/${hash}`
+// Explorer URLs are chain-specific — BOT Chain Testnet and Mainnet use
+// different explorers (scan.bohr.life vs scan.botchain.ai). Passing the
+// wrong one silently shows "not found" even for a genuinely real tx hash,
+// so these MUST be resolved against the currently connected chain, not
+// hardcoded to one network.
+const EXPLORER_BY_CHAIN_ID: Record<number, string> = {
+  968: "https://scan.bohr.life", // BOT Chain Testnet
+  677: "https://scan.botchain.ai", // BOT Chain Mainnet
 }
 
-export function explorerAddress(address: string) {
-  return `${BLOCK_EXPLORER_URL}/address/${address}`
+const DEFAULT_EXPLORER_URL = "https://scan.bohr.life"
+
+export function explorerTx(hash: string, chainId?: number) {
+  const base =
+    (chainId && EXPLORER_BY_CHAIN_ID[chainId]) || DEFAULT_EXPLORER_URL
+  return `${base}/tx/${hash}`
+}
+
+export function explorerAddress(address: string, chainId?: number) {
+  const base =
+    (chainId && EXPLORER_BY_CHAIN_ID[chainId]) || DEFAULT_EXPLORER_URL
+  return `${base}/address/${address}`
 }

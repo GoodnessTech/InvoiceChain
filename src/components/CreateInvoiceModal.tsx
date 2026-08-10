@@ -36,7 +36,7 @@ export function CreateInvoiceModal({ open, onClose }: CreateInvoiceModalProps) {
   const [faceValue, setFaceValue] = useState("")
   const [fundingGoal, setFundingGoal] = useState("")
   const [dueDate, setDueDate] = useState("")
-  const [paymentToken, setPaymentToken] = useState(PAYMENT_TOKEN_ADDRESS)
+  const [paymentToken, setPaymentToken] = useState<string>(PAYMENT_TOKEN_ADDRESS)
 
   if (!open) return null
 

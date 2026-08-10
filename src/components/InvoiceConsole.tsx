@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react"
 import { formatUnits, parseUnits } from "viem"
-import { useAccount, useReadContract, useWriteContract } from "wagmi"
+import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi"
 import { useQueryClient } from "@tanstack/react-query"
 import toast from "react-hot-toast"
 
@@ -36,8 +36,9 @@ export function InvoiceConsole({ invoice, onClose }: InvoiceConsoleProps) {
   const isMounted = useMounted()
   const { address, isConnected } = useAccount()
   const { writeContractAsync } = useWriteContract()
+  const publicClient = usePublicClient()
   const queryClient = useQueryClient()
-  const { updateInvoice, pushEvent } = useInvoiceStore()
+  const { pushEvent } = useInvoiceStore()
 
   const [investAmount, setInvestAmount] = useState("")
   const [approving, setApproving] = useState(false)
@@ -119,21 +120,35 @@ export function InvoiceConsole({ invoice, onClose }: InvoiceConsoleProps) {
     return (amountRaw * BigInt(Math.round(YIELD_RATE * 1000))) / 1000n
   }
 
-  function txHash() {
-    return (
-      "0x" +
-      Array.from({ length: 64 }, () =>
-        Math.floor(Math.random() * 16).toString(16),
-      ).join("")
-    )
-  }
-
-  async function tryWrite(fn: () => Promise<`0x${string}`>) {
+  // Submits a real on-chain write and waits for it to actually be mined
+  // before treating it as successful. Returns the real tx hash on success,
+  // or null on any failure — callers must check for null and must NOT
+  // fabricate a hash or optimistically pretend the action succeeded.
+  async function submitTx(
+    fn: () => Promise<`0x${string}`>,
+    actionLabel: string,
+  ): Promise<`0x${string}` | null> {
     try {
-      return await fn()
-    } catch {
-      // Placeholder contract / demo network fallback.
-      return txHash() as `0x${string}`
+      const hash = await fn()
+      if (!publicClient) {
+        // No client to confirm against — return the hash as-is rather than
+        // silently faking anything; this only happens if wagmi isn't
+        // configured with a public client, which shouldn't occur here.
+        return hash
+      }
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      if (receipt.status !== "success") {
+        toast.error(`${actionLabel} failed — the transaction reverted on-chain.`)
+        return null
+      }
+      return hash
+    } catch (err) {
+      const message =
+        (err as { shortMessage?: string; message?: string })?.shortMessage ??
+        (err as { message?: string })?.message ??
+        `${actionLabel} failed`
+      toast.error(message)
+      return null
     }
   }
 
@@ -155,16 +170,22 @@ export function InvoiceConsole({ invoice, onClose }: InvoiceConsoleProps) {
     setApproving(true)
     const id = toast.loading("Approving token spend…")
     const targetAmount = amountToApprove ?? parseUnits("1000000000", PAYMENT_TOKEN_DECIMALS)
-    await tryWrite(() =>
-      writeContractAsync({
-        address: PAYMENT_TOKEN_ADDRESS,
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [invoice.address as `0x${string}`, targetAmount],
-      }),
+    const hash = await submitTx(
+      () =>
+        writeContractAsync({
+          address: PAYMENT_TOKEN_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [invoice.address as `0x${string}`, targetAmount],
+        }),
+      "Approval",
     )
-    invalidateQueries()
-    toast.success("Approval confirmed", { id })
+    if (hash) {
+      invalidateQueries()
+      toast.success("Approval confirmed on-chain", { id })
+    } else {
+      toast.dismiss(id)
+    }
     setApproving(false)
   }
 
@@ -184,33 +205,30 @@ export function InvoiceConsole({ invoice, onClose }: InvoiceConsoleProps) {
     setPending(true)
     const id = toast.loading("Submitting investment…")
 
-    const hash = await tryWrite(() =>
-      writeContractAsync({
-        address: invoice.address as `0x${string}`,
-        abi: INVOICE_CHAIN_ABI,
-        functionName: "invest",
-        args: [amountRaw],
-      }),
+    const hash = await submitTx(
+      () =>
+        writeContractAsync({
+          address: invoice.address as `0x${string}`,
+          abi: INVOICE_CHAIN_ABI,
+          functionName: "invest",
+          args: [amountRaw],
+        }),
+      "Investment",
     )
 
-    const newRaised = invoice.totalRaised + amountRaw
-    const fullyFunded = newRaised >= invoice.fundingGoal
-    updateInvoice(invoice.address, {
-      totalRaised: newRaised,
-      state: fullyFunded ? "Funded" : "Funding",
-      userShare: userShares + amountRaw,
-    } as Partial<Invoice>)
-
-    pushEvent(buildEvent("Invested", amountRaw, address!, hash))
-    if (fullyFunded) {
-      pushEvent(buildEvent("Funded", newRaised, invoice.owner, txHash()))
-      toast.success("Invested — invoice fully funded!", { id })
+    if (hash) {
+      // Real state (including whether this investment fully funded the
+      // invoice) comes from the on-chain refetch below — not guessed here.
+      // If this tx crossed the funding goal, the contract emits a real
+      // Funded event in the same transaction, which the activity feed picks
+      // up on its next refresh — no need to fabricate a second entry for it.
+      pushEvent(buildEvent("Invested", amountRaw, address!, hash))
+      invalidateQueries()
+      toast.success("Investment confirmed on-chain", { id })
+      setInvestAmount("")
     } else {
-      toast.success("Investment confirmed", { id })
+      toast.dismiss(id)
     }
-
-    invalidateQueries()
-    setInvestAmount("")
     setPending(false)
   }
 
@@ -220,18 +238,23 @@ export function InvoiceConsole({ invoice, onClose }: InvoiceConsoleProps) {
     setPending(true)
     const id = toast.loading("Submitting repayment…")
     const repayRaw = invoice.faceValue
-    const hash = await tryWrite(() =>
-      writeContractAsync({
-        address: invoice.address as `0x${string}`,
-        abi: INVOICE_CHAIN_ABI,
-        functionName: "repay",
-        args: [repayRaw],
-      }),
+    const hash = await submitTx(
+      () =>
+        writeContractAsync({
+          address: invoice.address as `0x${string}`,
+          abi: INVOICE_CHAIN_ABI,
+          functionName: "repay",
+          args: [repayRaw],
+        }),
+      "Repayment",
     )
-    updateInvoice(invoice.address, { state: "Repaid" })
-    pushEvent(buildEvent("Repaid", repayRaw, address!, hash))
-    invalidateQueries()
-    toast.success("Invoice repaid", { id })
+    if (hash) {
+      pushEvent(buildEvent("Repaid", repayRaw, address!, hash))
+      invalidateQueries()
+      toast.success("Invoice repaid on-chain", { id })
+    } else {
+      toast.dismiss(id)
+    }
     setPending(false)
   }
 
@@ -241,22 +264,23 @@ export function InvoiceConsole({ invoice, onClose }: InvoiceConsoleProps) {
     setPending(true)
     const id = toast.loading("Claiming payout…")
     const payout = pendingPayout > 0n ? pendingPayout : userShares + estYield(userShares)
-    const hash = await tryWrite(() =>
-      writeContractAsync({
-        address: invoice.address as `0x${string}`,
-        abi: INVOICE_CHAIN_ABI,
-        functionName: "claim",
-        args: [],
-      }),
+    const hash = await submitTx(
+      () =>
+        writeContractAsync({
+          address: invoice.address as `0x${string}`,
+          abi: INVOICE_CHAIN_ABI,
+          functionName: "claim",
+          args: [],
+        }),
+      "Claim",
     )
-    updateInvoice(invoice.address, {
-      state: "Distributed",
-      userShare: 0n,
-      pendingPayout: 0n,
-    } as Partial<Invoice>)
-    pushEvent(buildEvent("Claimed", payout, address!, hash))
-    invalidateQueries()
-    toast.success("Payout claimed", { id })
+    if (hash) {
+      pushEvent(buildEvent("Claimed", payout, address!, hash))
+      invalidateQueries()
+      toast.success("Payout claimed on-chain", { id })
+    } else {
+      toast.dismiss(id)
+    }
     setPending(false)
   }
 
@@ -265,18 +289,23 @@ export function InvoiceConsole({ invoice, onClose }: InvoiceConsoleProps) {
     if (!ensureWallet()) return
     setPending(true)
     const id = toast.loading("Cancelling invoice…")
-    const hash = await tryWrite(() =>
-      writeContractAsync({
-        address: invoice.address as `0x${string}`,
-        abi: INVOICE_CHAIN_ABI,
-        functionName: "cancelInvoice",
-        args: [],
-      }),
+    const hash = await submitTx(
+      () =>
+        writeContractAsync({
+          address: invoice.address as `0x${string}`,
+          abi: INVOICE_CHAIN_ABI,
+          functionName: "cancelInvoice",
+          args: [],
+        }),
+      "Cancellation",
     )
-    updateInvoice(invoice.address, { state: "Cancelled" })
-    pushEvent(buildEvent("InvoiceCancelled", 0n, address!, hash))
-    invalidateQueries()
-    toast.success("Invoice cancelled successfully", { id })
+    if (hash) {
+      pushEvent(buildEvent("InvoiceCancelled", 0n, address!, hash))
+      invalidateQueries()
+      toast.success("Invoice cancelled on-chain", { id })
+    } else {
+      toast.dismiss(id)
+    }
     setPending(false)
   }
 
@@ -286,21 +315,23 @@ export function InvoiceConsole({ invoice, onClose }: InvoiceConsoleProps) {
     setPending(true)
     const id = toast.loading("Claiming refund…")
     const refundAmount = userShares
-    const hash = await tryWrite(() =>
-      writeContractAsync({
-        address: invoice.address as `0x${string}`,
-        abi: INVOICE_CHAIN_ABI,
-        functionName: "refund",
-        args: [],
-      }),
+    const hash = await submitTx(
+      () =>
+        writeContractAsync({
+          address: invoice.address as `0x${string}`,
+          abi: INVOICE_CHAIN_ABI,
+          functionName: "refund",
+          args: [],
+        }),
+      "Refund",
     )
-    updateInvoice(invoice.address, {
-      userShare: 0n,
-      pendingPayout: 0n,
-    } as Partial<Invoice>)
-    pushEvent(buildEvent("Refunded", refundAmount, address!, hash))
-    invalidateQueries()
-    toast.success("Refund claimed successfully", { id })
+    if (hash) {
+      pushEvent(buildEvent("Refunded", refundAmount, address!, hash))
+      invalidateQueries()
+      toast.success("Refund claimed on-chain", { id })
+    } else {
+      toast.dismiss(id)
+    }
     setPending(false)
   }
 
