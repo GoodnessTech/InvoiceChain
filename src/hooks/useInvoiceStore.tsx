@@ -34,12 +34,13 @@ interface InvoiceStore {
 
 const StoreContext = createContext<InvoiceStore | null>(null)
 
-// Maps a decoded on-chain log to the feed's display shape.
-function mapLogToFeedEvent(log: any): FeedEvent | null {
+// Maps a decoded on-chain log to the feed's display shape. `timestampMs` must
+// be the real block timestamp in milliseconds — resolved separately per
+// unique block before calling this, since logs themselves don't carry it.
+function mapLogToFeedEvent(log: any, timestampMs: number): FeedEvent | null {
   const eventName = log.eventName as string
   const args = (log.args ?? {}) as Record<string, any>
   const txHash = log.transactionHash as string
-  const blockNumber = log.blockNumber as bigint
 
   let type: FeedEventType
   let amount: bigint | undefined
@@ -86,10 +87,7 @@ function mapLogToFeedEvent(log: any): FeedEvent | null {
     amount,
     address: addr ?? log.address,
     txHash,
-    // Real timestamp isn't available without an extra block lookup per log —
-    // block number is used as a stable, monotonic sort key instead, and the
-    // feed's relative-time display degrades gracefully without it.
-    timestamp: Number(blockNumber ?? 0),
+    timestamp: timestampMs,
   }
 }
 
@@ -205,11 +203,31 @@ export function InvoiceStoreProvider({ children }: { children: ReactNode }) {
           ),
         )
 
-        const mapped = logsPerInvoice
-          .flat()
-          .map(mapLogToFeedEvent)
+        const allLogs = logsPerInvoice.flat()
+
+        // Resolve each log's real block timestamp. Dedupe by block number
+        // first so a busy invoice with many events in the same block only
+        // costs one RPC call for that block, not one per event.
+        const uniqueBlockNumbers = Array.from(
+          new Set(allLogs.map((log) => (log.blockNumber as bigint).toString())),
+        ).map((s) => BigInt(s))
+
+        const blocks = await Promise.all(
+          uniqueBlockNumbers.map((bn) => publicClient!.getBlock({ blockNumber: bn })),
+        )
+        const timestampByBlock = new Map<string, number>()
+        blocks.forEach((block) => {
+          // viem block.timestamp is in seconds — convert to ms for JS Date/time-ago math.
+          timestampByBlock.set(block.number!.toString(), Number(block.timestamp) * 1000)
+        })
+
+        const mapped = allLogs
+          .map((log) => {
+            const ts = timestampByBlock.get((log.blockNumber as bigint).toString()) ?? 0
+            return mapLogToFeedEvent(log, ts)
+          })
           .filter((e): e is FeedEvent => e !== null)
-          // Newest first, by block number.
+          // Newest first, by real timestamp.
           .sort((a, b) => b.timestamp - a.timestamp)
 
         if (!cancelled) {
