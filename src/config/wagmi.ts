@@ -49,6 +49,6 @@ const walletConnectProjectId =
 export const wagmiConfig = getDefaultConfig({
   appName: "InvoiceChain",
   projectId: walletConnectProjectId,
-  chains: [botTestnet, botChain], // botTestnet listed first so RainbowKit connects to testnet by default
+  chains: [botChain, botTestnet], // botTestnet listed first so RainbowKit connects to testnet by default
   ssr: false,
 })

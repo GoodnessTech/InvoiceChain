@@ -3,7 +3,7 @@ import "@rainbow-me/rainbowkit/styles.css"
 import { RainbowKitProvider, lightTheme } from "@rainbow-me/rainbowkit"
 import { WagmiProvider } from "wagmi"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { wagmiConfig, botTestnet } from "./config/wagmi"
+import { wagmiConfig, botTestnet, botChain } from "./config/wagmi"
 
 import { Header } from "./components/Header"
 import { StatsBar } from "./components/StatsBar"
@@ -86,8 +86,8 @@ function Dashboard() {
 
       <footer className="border-t border-slate-200 py-6">
         <div className="mx-auto max-w-7xl px-4 text-center text-xs text-slate-400 sm:px-6">
-          InvoiceChain · Chain ID 968 · RPC rpc.bohr.life · Explorer
-          scan.bohr.life
+          InvoiceChain · Chain ID 677 · RPC rpc.botchain.ai · Explorer
+         scan.botchain.ai
         </div>
       </footer>
 
@@ -105,7 +105,7 @@ export default function App() {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
-          initialChain={botTestnet}
+          initialChain={botChain}
           theme={lightTheme({
             accentColor: "#059669", // Emerald-600 green
             accentColorForeground: "white",

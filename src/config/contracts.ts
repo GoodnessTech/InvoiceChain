@@ -3,10 +3,10 @@
 // deployment addresses on BOT Chain Mainnet.
 
 export const INVOICE_FACTORY_ADDRESS =
-  "0x3D53C0dA6C19E688490c53e7E71BF952F5F12A80" as const
+  "0xe556cD5AE5a48f8438fA6657dB96D73f793fC426" as const
 
 export const PAYMENT_TOKEN_ADDRESS =
-  "0x8771e8e2b9Be146C38B07c16A59692FdD9dD098E" as const
+  "0x3D53C0dA6C19E688490c53e7E71BF952F5F12A80" as const
 
 // Payment token is treated as a 6-decimal stable token (USDC-style).
 export const PAYMENT_TOKEN_DECIMALS = 6
